@@ -1,0 +1,26 @@
+{
+  "threshold": 0.3,
+  "features_esperadas": [
+    "id",
+    "age",
+    "trestbps",
+    "chol",
+    "fbs",
+    "thalch",
+    "exang",
+    "oldpeak",
+    "sex_Male",
+    "cp_atypical angina",
+    "cp_non-anginal",
+    "cp_typical angina",
+    "restecg_normal",
+    "restecg_st-t abnormality",
+    "slope_flat",
+    "slope_upsloping",
+    "thal_normal",
+    "thal_reversable defect"
+  ],
+  "metrica_otimizada": "recall",
+  "recall_no_threshold": 0.97,
+  "precision_no_threshold": 0.87
+}
