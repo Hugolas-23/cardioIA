@@ -6,6 +6,7 @@ from pathlib import Path
 import joblib
 import pandas as pd
 import streamlit as st
+from fpdf import FPDF
 
 warnings.filterwarnings("ignore")
 
@@ -21,9 +22,86 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ============================================================
+
+# FUNÇÃO PARA GERAR RELATÓRIO PDF
+def gerar_relatorio_pdf(dados_paciente, probabilidade, predicao, limiar):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    
+    # Cabeçalho / Título
+    pdf.set_font("Helvetica", "B", 18)
+    pdf.set_text_color(10, 31, 51) # Navy
+    pdf.cell(0, 10, "CardioIA - Relatorio de Avaliacao Clinica", ln=True, align="C")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(92, 112, 137)
+    pdf.cell(0, 5, "Suporte e Apoio a Decision Medica com Machine Learning", ln=True, align="C")
+    pdf.ln(8)
+    
+    # Linha divisória
+    pdf.set_draw_color(220, 228, 236)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(8)
+    
+    # Seção 1: Parâmetros Clínicos
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.set_text_color(10, 31, 51)
+    pdf.cell(0, 8, "1. Dados do Paciente e Parametros Clinicos", ln=True)
+    pdf.ln(2)
+    
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(15, 35, 55)
+    
+    col_width = 90
+    items = list(dados_paciente.items())
+    for i in range(0, len(items), 2):
+        k1, v1 = items[i]
+        txt1 = f"- {k1}: {v1}"
+        if i + 1 < len(items):
+            k2, v2 = items[i+1]
+            txt2 = f"- {k2}: {v2}"
+            pdf.cell(col_width, 6, txt1)
+            pdf.cell(col_width, 6, txt2, ln=True)
+        else:
+            pdf.cell(col_width, 6, txt1, ln=True)
+            
+    pdf.ln(8)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(8)
+    
+    # Seção 2: Resultado
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.set_text_color(10, 31, 51)
+    pdf.cell(0, 8, "2. Resultado da Triagem (Machine Learning)", ln=True)
+    pdf.ln(2)
+    
+    status_texto = "Maior Atencao (Classe Positiva)" if predicao == 1 else "Menor Atencao (Classe Negativa)"
+    pct = probability * 100 if probability is not None else 0.0
+    
+    pdf.set_font("Helvetica", "B", 11)
+    if predicao == 1:
+        pdf.set_text_color(200, 30, 67) # Coral
+    else:
+        pdf.set_text_color(0, 168, 143) # Cyan Dark
+        
+    pdf.cell(0, 7, f"Classificacao do Modelo: {status_texto}", ln=True)
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(15, 35, 55)
+    pdf.cell(0, 6, f"Probabilidade Estimada: {pct:.1f}%", ln=True)
+    pdf.cell(0, 6, f"Limiar da Decision: {limiar:.0%}", ln=True)
+    
+    pdf.ln(10)
+    
+    # Nota de Isenção / Disclaimer
+    pdf.set_font("Helvetica", "I", 8)
+    pdf.set_text_color(122, 90, 10)
+    pdf.set_fill_color(255, 248, 234)
+    pdf.multi_cell(0, 5, "AVISO IMPORTANTE: O CardioIA e uma ferramenta academica de apoio. Nao realiza diagnostico definitivo, nao prescreve tratamento e nao substitui a avaliacao e conduta de um profissional medico habilitado.", border=1, fill=True)
+    
+    return bytes(pdf.output())
+
+
 # TEMA VISUAL
-# ============================================================
 st.markdown(
     """
     <style>
@@ -454,6 +532,16 @@ st.markdown(
             box-shadow: 0 12px 26px rgba(0,168,143,0.36);
         }
 
+        div[data-testid="stDownloadButton"] > button {
+            margin-top: 15px;
+            width: 100%;
+            border-radius: 12px;
+            background: #0A1F33;
+            color: #00E6C3;
+            border: 1px solid #123049;
+            font-weight: 600;
+        }
+
         div[data-testid="stExpander"] {
             border: 1px solid var(--line);
             border-radius: 14px;
@@ -488,9 +576,8 @@ st.markdown(
 )
 
 
-# ============================================================
+
 # CARREGAMENTO
-# ============================================================
 def find_config_path():
     for path in CONFIG_PATHS:
         if path.exists():
@@ -527,9 +614,8 @@ THRESHOLD = float(config.get("threshold", 0.5))
 FEATURES_ESPERADAS = config.get("features_esperadas", [])
 
 
-# ============================================================
+
 # FUNÇÕES
-# ============================================================
 def build_input_dataframe(
     age,
     sex,
@@ -545,7 +631,6 @@ def build_input_dataframe(
     thal,
 ):
     input_data = {
-        # Mantido apenas porque o modelo atual espera esta coluna.
         "id": 0,
         "age": age,
         "trestbps": trestbps,
@@ -565,7 +650,6 @@ def build_input_dataframe(
         "slope_flat": 1 if slope == "Plano" else 0,
         "slope_upsloping": 1 if slope == "Ascendente" else 0,
         "thal_normal": 1 if thal == "Normal" else 0,
-        # Grafia preservada para compatibilidade com o treinamento.
         "thal_reversable defect": 1 if thal == "Defeito reversível" else 0,
     }
 
@@ -627,9 +711,8 @@ def probability_html(probability, prediction):
     )
 
 
-# ============================================================
+
 # CABEÇALHO
-# ============================================================
 st.markdown(
     """
     <div class="hero">
@@ -653,9 +736,7 @@ st.markdown(
 )
 
 
-# ============================================================
 # CONTEÚDO PRINCIPAL
-# ============================================================
 col_form, col_result = st.columns([1.45, 0.85], gap="large")
 
 with col_form:
@@ -916,9 +997,23 @@ with col_result:
                     '</div>'
                 )
 
-                # HTML em uma única linha: não há possibilidade de o Markdown
-                # interpretar trechos indentados como bloco de código.
                 st.markdown(result_block, unsafe_allow_html=True)
+
+                # ============ BOTÃO PARA GERAR E BAIXAR O RELATÓRIO PDF ============
+                pdf_bytes = gerar_relatorio_pdf(
+                    dados_paciente=values,
+                    probabilidade=probability,
+                    predicao=prediction,
+                    limiar=THRESHOLD
+                )
+
+                st.download_button(
+                    label="📄 Baixar Relatório em PDF",
+                    data=pdf_bytes,
+                    file_name="relatorio_cardioia.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
 
                 with st.expander("Ver dados enviados ao modelo"):
                     st.dataframe(
@@ -936,9 +1031,7 @@ with col_result:
                     st.code(str(error))
 
 
-# ============================================================
 # INFORMAÇÕES DO MODELO
-# ============================================================
 st.markdown("<br>", unsafe_allow_html=True)
 
 with st.expander("Informações do modelo"):
